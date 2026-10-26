@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密貨幣合約損益計算器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #121212; color: #ffffff; font-family: sans-serif; }
+        .input-field { background-color: #2d2d2d; border: 1px solid #404040; color: white; }
+        .input-field:focus { outline: none; border-color: #3b82f6; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 p-6 rounded-xl shadow-lg w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-6 text-center">合約損益與保證金計算器</h1>
+
+        <!-- 多空選擇按鈕 -->
+        <div class="flex mb-5 gap-2">
+            <button id="btnLong" class="flex-1 py-2 rounded font-bold bg-green-600 text-white transition-colors">做多 (Long)</button>
+            <button id="btnShort" class="flex-1 py-2 rounded font-bold bg-gray-600 text-gray-300 transition-colors">做空 (Short)</button>
+        </div>
+
+        <!-- 參數輸入區 -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm mb-1 text-gray-400">開倉價格 (USDT)</label>
+                <input type="number" id="entryPrice" class="input-field w-full p-2 rounded" placeholder="例如: 65000">
+            </div>
+            <div>
+                <label class="block text-sm mb-1 text-gray-400">平倉價格 (USDT)</label>
+                <input type="number" id="exitPrice" class="input-field w-full p-2 rounded" placeholder="例如: 70000">
+            </div>
+            <div>
+                <label class="block text-sm mb-1 text-gray-400">數量 (幣)</label>
+                <input type="number" id="quantity" class="input-field w-full p-2 rounded" placeholder="例如: 0.1">
+            </div>
+            <div>
+                <label class="block text-sm mb-1 text-gray-400">槓桿倍數 (x)</label>
+                <input type="number" id="leverage" class="input-field w-full p-2 rounded" value="10">
+            </div>
+        </div>
+
+        <!-- 結果顯示區 -->
+        <div class="mt-6 p-4 bg-gray-900 rounded-lg space-y-3">
+            <div class="flex justify-between border-b border-gray-700 pb-2">
+                <span class="text-gray-400">初始保證金:</span>
+                <span id="marginResult" class="font-mono">0.00 USDT</span>
+            </div>
+            <div class="flex justify-between border-b border-gray-700 pb-2">
+                <span class="text-gray-400">預期損益 (PnL):</span>
+                <span id="pnlResult" class="font-mono font-bold">0.00 USDT</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-400">投資報酬率 (ROE):</span>
+                <span id="roeResult" class="font-mono font-bold">0.00%</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript 運算邏輯
+        const btnLong = document.getElementById('btnLong');
+        const btnShort = document.getElementById('btnShort');
+        const inputs = document.querySelectorAll('input');
+        const marginResult = document.getElementById('marginResult');
+        const pnlResult = document.getElementById('pnlResult');
+        const roeResult = document.getElementById('roeResult');
+
+        let isLong = true;
+
+        // 點擊做多
+        btnLong.addEventListener('click', () => {
+            isLong = true;
+            btnLong.className = 'flex-1 py-2 rounded font-bold bg-green-600 text-white transition-colors';
+            btnShort.className = 'flex-1 py-2 rounded font-bold bg-gray-600 text-gray-300 transition-colors';
+            calculate();
+        });
+
+        // 點擊做空
+        btnShort.addEventListener('click', () => {
+            isLong = false;
+            btnShort.className = 'flex-1 py-2 rounded font-bold bg-red-600 text-white transition-colors';
+            btnLong.className = 'flex-1 py-2 rounded font-bold bg-gray-600 text-gray-300 transition-colors';
+            calculate();
+        });
+
+        // 監聽所有輸入框，一旦打字就即時計算
+        inputs.forEach(input => input.addEventListener('input', calculate));
+
+        function calculate() {
+            const entry = parseFloat(document.getElementById('entryPrice').value);
+            const exit = parseFloat(document.getElementById('exitPrice').value);
+            const qty = parseFloat(document.getElementById('quantity').value);
+            const lev = parseFloat(document.getElementById('leverage').value);
+
+            // 如果有缺漏值，重置顯示
+            if (!entry || !qty || !lev) {
+                marginResult.textContent = '0.00 USDT';
+                pnlResult.textContent = '0.00 USDT';
+                roeResult.textContent = '0.00%';
+                pnlResult.className = 'font-mono font-bold';
+                roeResult.className = 'font-mono font-bold';
+                return;
+            }
+
+            // 計算初始保證金 = (開倉價 * 數量) / 槓桿
+            const margin = (entry * qty) / lev;
+            marginResult.textContent = margin.toFixed(2) + ' USDT';
+
+            // 如果還沒輸入平倉價，就先不算損益
+            if (!exit) return;
+
+            // 計算損益
+            let pnl = 0;
+            if (isLong) {
+                pnl = (exit - entry) * qty;
+            } else {
+                pnl = (entry - exit) * qty;
+            }
+
+            // 計算報酬率 = (損益 / 保證金) * 100
+            const roe = (pnl / margin) * 100;
+
+            // 更新畫面數值與符號
+            pnlResult.textContent = (pnl > 0 ? '+' : '') + pnl.toFixed(2) + ' USDT';
+            roeResult.textContent = (roe > 0 ? '+' : '') + roe.toFixed(2) + '%';
+
+            // 根據賺賠改變顏色
+            if (pnl > 0) {
+                pnlResult.className = 'font-mono font-bold text-green-500';
+                roeResult.className = 'font-mono font-bold text-green-500';
+            } else if (pnl < 0) {
+                pnlResult.className = 'font-mono font-bold text-red-500';
+                roeResult.className = 'font-mono font-bold text-red-500';
+            } else {
+                pnlResult.className = 'font-mono font-bold text-white';
+                roeResult.className = 'font-mono font-bold text-white';
+            }
+        }
+    </script>
+</body>
+</html>
